@@ -1,0 +1,85 @@
+name: Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["**"]
+    paths:
+      - "**.py"
+      - "requirements.txt"
+      - "data/**"
+  pull_request:
+    branches: ["**"]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  run_tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ------------------------------
+      # Step 1: Checkout the repository
+      # ------------------------------
+      - uses: actions/checkout@v3
+
+      # ------------------------------
+      # Step 2: Setup Python
+      # ------------------------------
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      # ------------------------------
+      # Step 3: Setup CML
+      # ------------------------------
+      - uses: iterative/setup-cml@v2
+
+      # ------------------------------
+      # Step 4: Install dependencies
+      # ------------------------------
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      # ------------------------------
+      # Step 5: Verify data.csv exists
+      # ------------------------------
+      - name: Verify data.csv exists
+        run: |
+          if [ ! -f data.csv ] && [ ! -f data/data.csv ]; then
+            echo "❌ data.csv not found!"
+            ls -R .
+            exit 1
+          fi
+          echo "✅ data.csv found."
+
+      # ------------------------------
+      # Step 6: Run pytest and capture output
+      # ------------------------------
+      - name: Run tests
+        run: |
+          pytest -q > test_output.txt 2>&1 || true
+
+      # ------------------------------
+      # Step 7: Show test output (for debug)
+      # ------------------------------
+      - name: Display test log
+        run: |
+          echo "===== 🧪 Test Output ====="
+          cat test_output.txt
+
+      # ------------------------------
+      # Step 8: CML Report as PR Comment
+      # ------------------------------
+      - name: Create CML report
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "## 🧪 Test Results" > report.md
+          echo "\`\`\`" >> report.md
+          cat test_output.txt >> report.md
+          echo "\`\`\`" >> report.md
+          cml comment create --publish report.md

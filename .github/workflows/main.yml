@@ -1,0 +1,147 @@
+name: Main
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "**.py"
+      - "**.ipynb"
+      - "requirements.txt"
+      - "artifacts/**"
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  train_model:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ----------------------------------------------------------
+      # Step 1: Checkout repository
+      # ----------------------------------------------------------
+      - uses: actions/checkout@v3
+
+      # ----------------------------------------------------------
+      # Step 2: Setup Python environment
+      # ----------------------------------------------------------
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      # ----------------------------------------------------------
+      # Step 3: Setup CML
+      # ----------------------------------------------------------
+      - uses: iterative/setup-cml@v2
+
+      # ----------------------------------------------------------
+      # Step 4: Install dependencies
+      # ----------------------------------------------------------
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      # ----------------------------------------------------------
+      # Step 5: Verify data.csv exists
+      # ----------------------------------------------------------
+      - name: Verify data.csv exists
+        run: |
+          if [ ! -f data.csv ] && [ ! -f data/data.csv ]; then
+            echo "❌ data.csv not found!"
+            ls -R .
+            exit 1
+          fi
+          echo "✅ data.csv found!"
+
+      # ----------------------------------------------------------
+      # Step 6: Train the model with 10% label noise
+      # ----------------------------------------------------------
+      - name: Train the model
+        run: |
+          python train.py --label-noise 0.10 > train_output.txt 2>&1 || true
+
+      # ----------------------------------------------------------
+      # Step 7: Debug — show training output
+      # ----------------------------------------------------------
+      - name: Debug — Training Log
+        run: |
+          echo "=== 🧠 Training Log ==="
+          cat train_output.txt || true
+
+      # ----------------------------------------------------------
+      # Step 8: CML report — Training
+      # ----------------------------------------------------------
+      - name: Create CML report
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "## 🧠 Training Output (Label Noise = 10%)" > report.md
+          echo "\`\`\`" >> report.md
+          cat train_output.txt >> report.md
+          echo "\`\`\`" >> report.md
+          cml comment create --publish report.md
+
+      # ----------------------------------------------------------
+      # Step 9: Upload MLflow artifacts
+      # ----------------------------------------------------------
+      - name: Upload MLflow Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlflow_artifacts
+          path: mlruns/
+          if-no-files-found: ignore
+
+  fetch_latest_model:
+    runs-on: ubuntu-latest
+    needs: train_model
+
+    steps:
+      # ----------------------------------------------------------
+      # Step 1: Checkout repository
+      # ----------------------------------------------------------
+      - uses: actions/checkout@v3
+
+      # ----------------------------------------------------------
+      # Step 2: Setup Python 3.9
+      # ----------------------------------------------------------
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      # ----------------------------------------------------------
+      # Step 3: Install dependencies
+      # ----------------------------------------------------------
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+
+      # ----------------------------------------------------------
+      # Step 4: Fetch model from MLflow
+      # ----------------------------------------------------------
+      - name: Fetch model from MLflow
+        run: |
+          python fetch_from_mlflow.py > fetch_output.txt 2>&1 || true
+
+      # ----------------------------------------------------------
+      # Step 5: Debug — fetch output
+      # ----------------------------------------------------------
+      - name: Debug — Fetch Log
+        run: |
+          echo "=== 📥 Fetch Log ==="
+          cat fetch_output.txt || true
+
+      # ----------------------------------------------------------
+      # Step 6: Upload downloaded model
+      # ----------------------------------------------------------
+      - name: Upload downloaded model
+        uses: actions/upload-artifact@v4
+        with:
+          name: downloaded_model
+          path: downloaded_models/
+          if-no-files-found: warn
