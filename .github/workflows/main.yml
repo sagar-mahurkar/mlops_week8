@@ -64,7 +64,7 @@ jobs:
       # ----------------------------------------------------------
       - name: Train the model
         run: |
-          python train.py --label-noise 0.10 > train_output.txt 2>&1 || true
+          python train.py --label_noise 0.10 > train_output.txt 2>&1 || true
 
       # ----------------------------------------------------------
       # Step 7: Debug — show training output
@@ -145,3 +145,4 @@ jobs:
           name: downloaded_model
           path: downloaded_models/
           if-no-files-found: warn
+
