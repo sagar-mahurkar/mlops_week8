@@ -10,7 +10,7 @@ from mlflow.exceptions import MlflowException
 # ---------------------------
 # CONFIG
 # ---------------------------
-URI = "http://35.202.220.108:5000/"
+URI = "http://104.154.76.71:5000/"
 NAME = "iris-random-forest"
 ARTIFACT_SUBPATH = "random_forest_model"
 LOCAL_DIR = "./downloaded_models"
